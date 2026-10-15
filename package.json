@@ -1,0 +1,27 @@
+{
+  "name": "club-hack-game",
+  "version": "1.0.0",
+  "description": "동아리 보안 실습용 취약 쇼핑몰 (교육/방어 전용, 격리 환경에서만 사용)",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "seed": "ts-node-dev --transpile-only src/seed.ts",
+    "reset": "node -e \"require('fs').rmSync('shop.db',{force:true});require('fs').rmSync('shop.db-wal',{force:true});require('fs').rmSync('shop.db-shm',{force:true});console.log('DB reset')\" && npm run seed"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.6",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.7",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^22.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.4"
+  }
+}

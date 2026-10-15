@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>동아리 매점</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 0 auto; padding: 24px; background: #f7f7fb; color: #1a1a2e; }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .card { background: #fff; border: 1px solid #e3e3ef; border-radius: 10px; padding: 16px; margin: 12px 0; }
+    .product { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f0f5; }
+    button { cursor: pointer; border: 0; border-radius: 8px; padding: 9px 14px; background: #4f46e5; color: #fff; font-size: 14px; }
+    button.alt { background: #0ea5e9; }
+    button.ghost { background: #eef; color: #333; }
+    input { padding: 9px; border: 1px solid #cdd; border-radius: 8px; font-size: 14px; }
+    .muted { color: #777; font-size: 13px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    pre { background: #0f172a; color: #a5f3fc; padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; }
+    /* 로그인 상태 배너 */
+    #status { padding: 12px 16px; border-radius: 10px; font-weight: 600; margin: 12px 0;
+              background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+    #status.on { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+    #status.err { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+  </style>
+</head>
+<body>
+  <h1>🛒 동아리 매점</h1>
+  <p class="muted">교육용 보안 실습 환경 · 격리된 로컬에서만 사용</p>
+
+  <div id="status">🔓 비로그인 상태입니다. 아래에서 로그인하세요.</div>
+
+  <div class="card">
+    <h3>로그인</h3>
+    <div class="row">
+      <input id="u" placeholder="username" autocomplete="off" />
+      <input id="p" placeholder="password" type="password" autocomplete="off" />
+      <button id="loginBtn">로그인</button>
+      <button id="logoutBtn" class="ghost">로그아웃</button>
+    </div>
+    <p class="muted">예: alice / alice123 &nbsp;·&nbsp; bob / bobpassword</p>
+  </div>
+
+  <div class="card">
+    <h3>상품 검색</h3>
+    <div class="row">
+      <input id="q" placeholder="상품명 검색" />
+      <button id="searchBtn" class="alt">검색</button>
+    </div>
+    <div id="results"></div>
+  </div>
+
+  <div class="card">
+    <h3>상품 목록</h3>
+    <div id="products"></div>
+  </div>
+
+  <div class="card">
+    <h3>리뷰 보기</h3>
+    <div class="row">
+      <input id="pid" placeholder="상품 id" value="1" style="width:80px" />
+      <button id="reviewBtn" class="alt">리뷰 불러오기</button>
+    </div>
+    <div id="reviews"></div>
+  </div>
+
+  <div class="card">
+    <h3>서버 응답 (디버그)</h3>
+    <pre id="out">여기에 서버 응답이 표시됩니다.</pre>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const out = (x) => $("out").textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2);
+
+function setStatus(text, kind) {
+  const el = $("status");
+  el.textContent = text;
+  el.className = kind || "";
+}
+
+async function login() {
+  try {
+    const r = await fetch("/api/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("u").value, password: $("p").value })
+    });
+    const j = await r.json();
+    out(j);
+    if (j.ok) setStatus(`🔒 로그인됨: ${j.username} (${j.role})`, "on");
+    else setStatus(`❌ 로그인 실패: ${j.error || "확인 필요"}`, "err");
+  } catch (e) {
+    setStatus("⚠️ 서버에 연결할 수 없습니다. 서버가 켜져 있나요?", "err");
+    out(String(e));
+  }
+}
+
+async function logout() {
+  await fetch("/api/auth/logout", { method: "POST" });
+  setStatus("🔓 로그아웃되었습니다.", "");
+  out({ ok: true, msg: "logged out" });
+}
+
+async function refreshMe() {
+  try {
+    const r = await fetch("/api/auth/me");
+    if (r.ok) { const j = await r.json(); setStatus(`🔒 로그인됨: ${j.username} (${j.role})`, "on"); }
+  } catch {}
+}
+
+async function search() {
+  const r = await fetch("/api/products/search?q=" + encodeURIComponent($("q").value));
+  out(await r.json());
+}
+
+async function loadProducts() {
+  const r = await fetch("/api/products");
+  const list = await r.json();
+  $("products").innerHTML = list.map(p =>
+    `<div class="product"><span>${p.name} — ${p.price}원 (재고 ${p.stock})</span>
+     <button data-buy="${p.id}" data-price="${p.price}">구매</button></div>`
+  ).join("");
+  document.querySelectorAll("[data-buy]").forEach(b =>
+    b.addEventListener("click", () => buy(Number(b.dataset.buy), Number(b.dataset.price)))
+  );
+}
+
+async function buy(productId, price) {
+  const r = await fetch("/api/orders", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId, qty: 1, price })
+  });
+  const j = await r.json();
+  out(j);
+  if (j.error) setStatus(`구매 실패: ${j.error}`, "err");
+}
+
+async function loadReviews() {
+  const r = await fetch(`/api/products/${$("pid").value}/reviews`);
+  const list = await r.json();
+  $("reviews").innerHTML = list.map(rv =>
+    `<div class="card"><b>${rv.author}</b><br>${rv.body}<br><span class="muted">${rv.created_at}</span></div>`
+  ).join("") || "<p class='muted'>리뷰 없음</p>";
+}
+
+// 이벤트 연결 (inline onclick 대신 안전하게 바인딩)
+$("loginBtn").addEventListener("click", login);
+$("logoutBtn").addEventListener("click", logout);
+$("searchBtn").addEventListener("click", search);
+$("reviewBtn").addEventListener("click", loadReviews);
+$("p").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+$("u").addEventListener("keydown", (e) => { if (e.key === "Enter") $("p").focus(); });
+
+loadProducts();
+refreshMe();
+</script>
+</body>
+</html>

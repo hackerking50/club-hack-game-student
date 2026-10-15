@@ -1,0 +1,8 @@
+node_modules/
+dist/
+shop.db
+shop.db-wal
+shop.db-shm
+*.log
+cj.txt
+*.cookies.txt
